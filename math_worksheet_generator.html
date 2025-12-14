@@ -413,6 +413,7 @@
                 { value: 'div_2_5_10', text: 'Geteilt (2er, 5er, 10er)' },
                 { value: 'rechenmauer', text: 'Rechenmauern (Zahlenmauern)' },
                 { value: 'rechenmauer_4', text: 'Rechenmauern (4 Ebenen)' },
+                { value: 'doubling_halving', text: 'Halbieren und Verdoppeln' },
                 { value: 'word_problems', text: 'Sachrechnen (Textaufgaben)' }
             ],
             '3': [
@@ -547,6 +548,19 @@
                     }
                     op = ':';
                     break;
+                case 'doubling_halving':
+                    {
+                        const isDouble = Math.random() < 0.5;
+                        if (isDouble) {
+                            // Double: 1..50 -> 2..100
+                            a = getRandomInt(1, 50);
+                            return { type: 'doubling_halving', subtype: 'double', val: a, answer: a * 2 };
+                        } else {
+                            // Halve: Even numbers 2..100
+                            let val = getRandomInt(1, 50) * 2;
+                            return { type: 'doubling_halving', subtype: 'halve', val: val, answer: val / 2 };
+                        }
+                    }
                 case 'rechenmauer':
                     return generatePyramid(100, 3);
                 case 'rechenmauer_4':
@@ -796,6 +810,26 @@
                         <span style="font-size:12pt; margin-right:5px;">R</span>
                         <input type="number" class="answer-input" style="width:40px; ${style}" 
                                data-expected="${remainder}" value="${valR}" oninput="validateInput(this)" ${isSolution ? 'readonly' : ''}>
+                        <input type="number" class="answer-input" style="width:40px; ${style}" 
+                               data-expected="${remainder}" value="${valR}" oninput="validateInput(this)" ${isSolution ? 'readonly' : ''}>
+                    `;
+
+            } else if (problemData.type === 'doubling_halving') {
+                const { subtype, val, answer } = problemData;
+                const label = subtype === 'double' ? 'Verdopple:' : 'Halbiere:';
+                // const icon = subtype === 'double' ? '✨2x' : '✂️½'; // Maybe too noisy? Text is engaging enough.
+
+                const valAns = isSolution ? answer : '';
+                const style = isSolution ? 'color:var(--primary-color); font-weight:bold;' : '';
+
+                problemDiv.innerHTML = `
+                        <div style="flex:1; display:flex; align-items:center; gap:10px;">
+                            <span style="font-weight:bold; min-width:80px;">${label}</span>
+                            <span class="number" style="text-align:center; font-size:1.2em;">${val}</span>
+                        </div>
+                        <span style="margin:0 10px;">➜</span>
+                        <input type="number" class="answer-input" style="${style}" 
+                               data-expected="${answer}" value="${valAns}" oninput="validateInput(this)" ${isSolution ? 'readonly' : ''}>
                     `;
 
             } else {
