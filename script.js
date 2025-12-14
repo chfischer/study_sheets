@@ -224,6 +224,37 @@ function generateSheet() {
 
     // 4. Render
     renderCurrentState();
+
+    // 5. Update URL
+    updateURLState();
+}
+
+function updateURLState() {
+    const params = new URLSearchParams();
+
+    // Grade
+    const grade = document.getElementById('gradeSelector').value;
+    params.set('grade', grade);
+
+    // Topic
+    const topic = document.getElementById('topicSelector').value;
+    params.set('topic', topic);
+
+    // Page Count
+    const count = document.getElementById('pageCount').value;
+    params.set('count', count);
+
+    // Custom params
+    if (topic === 'custom') {
+        const checkboxes = document.querySelectorAll('#checkboxContainer input[type="checkbox"]:checked');
+        const values = Array.from(checkboxes).map(cb => cb.value);
+        if (values.length > 0) {
+            params.set('custom', values.join(','));
+        }
+    }
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
 }
 
 function getRandomInt(min, max) {
@@ -1364,10 +1395,86 @@ function checkAllDone() {
 }
 
 // Initialize on load
-window.onload = function () {
-    updateTopicSelector(); // This will also call generateSheet
+function init() {
+    // 1. Initial UI Setup (Defaults)
+    // Grade 2 is default in HTML
+
+    // 2. Load State from URL
+    loadStateFromURL();
+
+    // 3. Generate initial sheet
+    // If loadStateFromURL called updateTopicSelector, it might have triggered check? 
+    // updateTopicSelector does NOT generateSheet automatically unless we told it to?
+    // Actually updateTopicSelector just updates options. logic is separate.
+    // Let's ensure generateSheet is called once.
+    generateSheet();
+
+    // 4. Scale
     autoScaleSheet();
-};
+}
+
+function loadStateFromURL() {
+    const params = new URLSearchParams(window.location.search);
+
+    // 1. Grade
+    if (params.has('grade')) {
+        const grade = params.get('grade');
+        const sel = document.getElementById('gradeSelector');
+        if (sel) {
+            sel.value = grade;
+            // Trigger topic update for this grade
+            updateTopicSelector();
+        }
+    } else {
+        // Ensure topics are populated for default grade
+        updateTopicSelector();
+    }
+
+    // 2. Topic
+    if (params.has('topic')) {
+        const topic = params.get('topic');
+        const topicSel = document.getElementById('topicSelector');
+        if (topicSel) {
+            // Check if option exists (might be invalid for grade?)
+            // If custom, we added it.
+            topicSel.value = topic;
+
+            // If Custom, handle visibility
+            if (topic === 'custom') {
+                const customContainer = document.getElementById('customOptions');
+                customContainer.style.display = 'flex'; // show it
+
+                // Populate checkboxes if needed (updateTopicSelector did it, but let's be sure)
+                // updateCustomCheckboxes was called by updateTopicSelector() -> triggering?
+                // Actually updateCustomCheckboxes resets checked status to TRUE by default.
+                // We need to overwrite that if custom param exists.
+
+                if (params.has('custom')) {
+                    const customVal = params.get('custom').split(',');
+                    // Uncheck all first? Or check only matches?
+                    const allCbs = document.querySelectorAll('#checkboxContainer input[type="checkbox"]');
+                    allCbs.forEach(cb => {
+                        cb.checked = customVal.includes(cb.value);
+                    });
+                }
+            } else {
+                const customContainer = document.getElementById('customOptions');
+                customContainer.style.display = 'none';
+            }
+        }
+    }
+
+    // 3. Count
+    if (params.has('count')) {
+        const count = params.get('count');
+        const pageInput = document.getElementById('pageCount');
+        if (pageInput) {
+            pageInput.value = count;
+        }
+    }
+}
+
+window.onload = init;
 
 window.onresize = autoScaleSheet;
 
