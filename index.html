@@ -102,6 +102,43 @@
             /* Let the body/sheet handle margins */
         }
 
+        /* Mobile Responsiveness */
+        @media screen and (max-width: 850px) {
+            .controls {
+                flex-direction: column;
+                padding: 1rem;
+                gap: 0.5rem;
+                width: 90%;
+            }
+
+            select,
+            button {
+                width: 100%;
+                font-size: 1.1rem;
+                /* Hit target size */
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            body {
+                padding: 10px;
+                overflow-x: hidden;
+                /* Prevent scrollbars from the unscaled wrapper width */
+            }
+
+            #sheetsWrapper {
+                /* Will be scaled by JS, but standard CSS here */
+                width: 210mm;
+                /* Match sheet width to ensure no clipping before scale */
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                /* overflow: hidden; Removed to allow full content render */
+            }
+        }
+
         /* Worksheet (Screen Preview & Print) */
         .sheet {
             background: var(--sheet-bg);
@@ -433,6 +470,12 @@
             .sheet:last-child {
                 page-break-after: auto;
                 break-after: auto;
+            }
+
+            #sheetsWrapper {
+                transform: none !important;
+                width: auto !important;
+                display: block !important;
             }
         }
 
@@ -1728,7 +1771,51 @@
         // Initialize on load
         window.onload = function () {
             updateTopicSelector(); // This will also call generateSheet
+            autoScaleSheet();
         };
+
+        window.onresize = autoScaleSheet;
+
+        function autoScaleSheet() {
+            // Only scale if screen is smaller than sheet (approx 800px + margins)
+            // 210mm is approx 794px at 96dpi. Let's say 820px safety.
+
+            const wrapper = document.getElementById('sheetsWrapper');
+            // Reset first provided we aren't printing
+            if (window.matchMedia('print').matches) {
+                wrapper.style.transform = 'none';
+                wrapper.style.height = 'auto'; // Reset height
+                return;
+            }
+
+            const screenWidth = window.innerWidth;
+            const sheetWidth = 820; // Approx 210mm in px plus visual margin
+
+            if (screenWidth < sheetWidth) {
+                // Calculate scale
+                // Leave 20px margin
+                const scale = (screenWidth - 20) / sheetWidth;
+                wrapper.style.transform = `scale(${scale})`;
+                wrapper.style.transformOrigin = 'top center';
+
+                // Fix whitespace: container keeps original height, so we must reduce it manually
+                // We need to wait for DOM to be stable if we just rendered, but usually it is.
+                // The visual height is scrollHeight * scale.
+                // However, scrollHeight might be affected by the transform itself if we are not careful.
+                // Standard flow: element occupies 'scrollHeight'. Transform shrinks it visually but not in flow.
+                // So we set exact height to visual height.
+
+                // Important: Reset height to auto first to get true scrollHeight (if we are resizing)
+                wrapper.style.height = 'auto';
+                const originalHeight = wrapper.scrollHeight;
+                const newHeight = originalHeight * scale;
+                wrapper.style.height = `${newHeight}px`;
+
+            } else {
+                wrapper.style.transform = 'none';
+                wrapper.style.height = 'auto';
+            }
+        }
     </script>
 </body>
 
