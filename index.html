@@ -85,6 +85,11 @@
             color: white;
         }
 
+        .btn-check {
+            background: linear-gradient(135deg, #42e695, #3bb2b8);
+            color: white;
+        }
+
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
@@ -181,12 +186,44 @@
 
         .answer-box {
             width: 70px;
-            /* Slightly smaller */
             height: 35px;
-            /* Slightly smaller */
             border: 2px solid #ccc;
             border-radius: 8px;
             background-color: #fafafa;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        /* Input Styles */
+        input.answer-input {
+            width: 70px;
+            height: 35px;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            background-color: #fff;
+            font-family: 'Comic Neue', cursive;
+            font-size: 16pt;
+            text-align: center;
+            color: var(--text-color);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input.answer-input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 5px rgba(79, 172, 254, 0.5);
+        }
+
+        input.answer-input.correct {
+            border-color: #2ecc71;
+            background-color: #e8f8f5;
+            color: #27ae60;
+        }
+
+        input.answer-input.incorrect {
+            border-color: #e74c3c;
+            background-color: #fadbd8;
+            color: #c0392b;
         }
 
         .footer {
@@ -247,7 +284,7 @@
         }
 
         /* Ensure inputs fit in bricks if we used input elements, but we might just use empty bricks for kids to write in */
-        .brick input {
+        input.brick-input {
             width: 100%;
             height: 100%;
             border: none;
@@ -255,6 +292,20 @@
             font-family: inherit;
             font-size: inherit;
             background: transparent;
+            color: inherit;
+            outline: none;
+        }
+
+        .brick.input.correct {
+            background-color: #e8f8f5;
+            border-color: #2ecc71;
+            color: #27ae60;
+        }
+
+        .brick.input.incorrect {
+            background-color: #fadbd8;
+            border-color: #e74c3c;
+            color: #c0392b;
         }
 
         @media print {
@@ -275,6 +326,24 @@
 
             .controls {
                 display: none;
+            }
+
+            /* Print friendly inputs */
+            input.answer-input,
+            input.brick-input {
+                border: 2px solid #ccc;
+                /* Maintain border for writing */
+                background: none;
+                color: transparent;
+                /* Hide user answers when printing empty sheets, but show if we want? Usually we want empty.*/
+            }
+
+            /* Actually, if user wants to print the filled sheet -> color: black. 
+               If user wants to print empty sheet -> they just generate and print. 
+               So Color should be black. */
+            input.answer-input,
+            input.brick-input {
+                color: #000;
             }
 
             .sheet {
@@ -303,6 +372,7 @@
             <!-- Options populated by JS -->
         </select>
         <button class="btn-generate" onclick="generateSheet()">✨ Neue Aufgaben</button>
+        <button class="btn-check" onclick="checkResults()">✔️ Prüfen</button>
         <button class="btn-print" onclick="window.print()">🖨️ Drucken</button>
     </div>
 
@@ -622,7 +692,7 @@
                         <div style="font-size: 14pt; margin-bottom:10px;">${problemData.q}</div>
                         <div style="display:flex; gap:10px; align-items:center; width:100%; justify-content: flex-end;">
                             <span>Antwort:</span>
-                            <div class="answer-box" style="width:100px;"></div>
+                            <input type="number" class="answer-input" style="width:100px;" data-expected="${problemData.a}">
                         </div>
                     `;
 
@@ -634,7 +704,11 @@
                     const renderBrick = (idx) => {
                         const val = v[idx];
                         const isHidden = m[idx];
-                        return `<div class="brick ${isHidden ? 'input' : ''}">${isHidden ? '' : val}</div>`;
+                        if (isHidden) {
+                            return `<div class="brick input"><input type="number" class="brick-input answer-input" data-expected="${val}"></div>`;
+                        } else {
+                            return `<div class="brick">${val}</div>`;
+                        }
                     };
 
                     problemDiv.innerHTML = `
@@ -659,10 +733,14 @@
                 } else if (problemData.type === 'missing_addend') {
                     // e.g. 3 + [ ] = 10
                     const { a, sum, op } = problemData;
+                    // Expected is sum - a? No, problemData didn't store unknown 'b'. 
+                    // Wait, logic in generateProblem for bonds_10: a = random, sum = 10. b = 10-a.
+                    const expected = sum - a;
+
                     problemDiv.innerHTML = `
                         <span class="number">${a}</span>
                         <span class="operator">${op}</span>
-                        <div class="answer-box" style="width:50px; margin:0 5px;"></div>
+                        <input type="number" class="answer-input" style="width:50px; margin:0 5px;" data-expected="${expected}">
                         <span class="equals">=</span>
                         <span class="number">${sum}</span>
                     `;
@@ -670,25 +748,35 @@
                 } else if (problemData.type === 'div_remainder') {
                     // e.g. 17 : 5 = [ ] R [ ]
                     const { a, b, op } = problemData;
+                    // Calc expected
+                    const quotient = Math.floor(a / b);
+                    const remainder = a % b;
+
                     problemDiv.innerHTML = `
                         <span class="number">${a}</span>
                         <span class="operator">${op}</span>
                         <span class="number">${b}</span>
                         <span class="equals">=</span>
-                        <div class="answer-box" style="width:40px; margin-right:5px;"></div>
+                        <input type="number" class="answer-input" style="width:40px; margin-right:5px;" data-expected="${quotient}">
                         <span style="font-size:12pt; margin-right:5px;">R</span>
-                        <div class="answer-box" style="width:40px;"></div>
+                        <input type="number" class="answer-input" style="width:40px;" data-expected="${remainder}">
                     `;
 
                 } else {
                     // Normal Number Problem
                     const { a, b, op } = problemData;
+                    let expected;
+                    if (op === '+') expected = a + b;
+                    else if (op === '-') expected = a - b;
+                    else if (op === '×') expected = a * b;
+                    else if (op === ':') expected = a / b;
+
                     problemDiv.innerHTML = `
                         <span class="number">${a}</span>
                         <span class="operator">${op}</span>
                         <span class="number">${b}</span>
                         <span class="equals">=</span>
-                        <div class="answer-box"></div>
+                        <input type="number" class="answer-input" data-expected="${expected}">
                     `;
                 }
                 container.appendChild(problemDiv);
@@ -696,6 +784,41 @@
 
             // Random mascot
             mascotElement.textContent = mascots[getRandomInt(0, mascots.length - 1)];
+        }
+
+        function checkResults() {
+            const inputs = document.querySelectorAll('.answer-input');
+            let correctCount = 0;
+            let total = 0;
+
+            inputs.forEach(input => {
+                // Skip if empty? No, mark as wrong or ignore. Let's mark wrong if empty or wrong.
+                total++;
+                const expected = parseInt(input.dataset.expected);
+                const value = parseInt(input.value);
+
+                // For pyramids, the parent brick needs styling
+                const isBrick = input.classList.contains('brick-input');
+                const target = isBrick ? input.parentElement : input;
+
+                if (!isNaN(value) && value === expected) {
+                    target.classList.add('correct');
+                    target.classList.remove('incorrect');
+                    correctCount++;
+                } else {
+                    target.classList.add('incorrect');
+                    target.classList.remove('correct');
+                }
+            });
+
+            const mascot = document.getElementById('mascot');
+            if (correctCount === total) {
+                mascot.textContent = '🎉';
+                alert(`Perfekt! Alle ${total} Aufgaben sind richtig! Super gemacht! 🌟`);
+            } else {
+                mascot.textContent = '🤔';
+                // Optional: Don't alert for partial, just show colors.
+            }
         }
 
         // Initialize on load
