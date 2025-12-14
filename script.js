@@ -189,8 +189,8 @@ function generateSheet() {
 
     // Heuristic for count if custom/mixed
     if (type === 'mixed' || type === 'custom') {
-        // Logic to be safe? 12 is safe for pyramids.
-        numProblems = 12;
+        // As requested: Individual module always 8 elements
+        numProblems = 8;
     } else {
         // Specific types...
         if (type === 'word_problems') numProblems = 8;
