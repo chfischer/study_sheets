@@ -316,7 +316,7 @@
                 padding: 0;
                 background: none;
                 width: 210mm;
-                height: 297mm;
+                height: auto;
             }
 
             /* Ensure pyramids don't break across pages awkwardly (though grid handles most) */
@@ -350,11 +350,15 @@
                 box-shadow: none;
                 margin: 0;
                 width: 100%;
-                height: 100%;
-                /* Force full height */
-                page-break-after: avoid;
-                /* Try to avoid overflow pages */
+                height: auto;
+                page-break-after: always;
+                break-after: page;
                 border: none;
+            }
+
+            .sheet:last-child {
+                page-break-after: auto;
+                break-after: auto;
             }
         }
     </style>
@@ -371,27 +375,18 @@
         <select id="topicSelector">
             <!-- Options populated by JS -->
         </select>
+        <div style="display:flex; align-items:center;">
+            <input type="checkbox" id="solutionToggle" style="width:20px; height:20px; margin-right:5px;"
+                onchange="renderCurrentState()">
+            <label for="solutionToggle">Lösungsblatt</label>
+        </div>
         <button class="btn-generate" onclick="generateSheet()">✨ Neue Aufgaben</button>
         <!-- Check button removed in favor of real-time validation -->
         <button class="btn-print" onclick="window.print()">🖨️ Drucken</button>
     </div>
 
-    <div class="sheet" id="sheet">
-        <div class="sheet-header">
-            <div class="header-field">Name: <span class="line"></span></div>
-            <div class="header-field">Datum: <span class="line"></span></div>
-        </div>
-        <h1 id="sheetTitle">Mathe Übung</h1>
-
-        <div class="problem-grid" id="problemContainer">
-            <!-- Problems will be inserted here -->
-        </div>
-
-        <div class="mascot" id="mascot">🦊</div>
-
-        <div class="footer">
-            Gut gemacht! &bull; Erstellt mit Antigravity
-        </div>
+    <div id="sheetsWrapper">
+        <!-- Sheets will be inserted here -->
     </div>
 
     <script>
@@ -417,6 +412,7 @@
                 { value: 'mult_all', text: 'Kleines 1x1 (Gemischt)' },
                 { value: 'div_2_5_10', text: 'Geteilt (2er, 5er, 10er)' },
                 { value: 'rechenmauer', text: 'Rechenmauern (Zahlenmauern)' },
+                { value: 'rechenmauer_4', text: 'Rechenmauern (4 Ebenen)' },
                 { value: 'word_problems', text: 'Sachrechnen (Textaufgaben)' }
             ],
             '3': [
@@ -552,7 +548,9 @@
                     op = ':';
                     break;
                 case 'rechenmauer':
-                    return generatePyramid(100);
+                    return generatePyramid(100, 3);
+                case 'rechenmauer_4':
+                    return generatePyramid(100, 4);
                 case 'word_problems':
                     // Existing word problems (could be graded too, but keeping simple for now)
                     const problems = [
@@ -608,182 +606,316 @@
                     // Let's go up to 200 for grade 3? Or just stick to 100 but maybe harder start?
                     // Standard Grade 3 adds numbers up to 1000, so pyramid sum could go higher?
                     // Defaulting to 200 top.
-                    return generatePyramid(200);
+                    return generatePyramid(200, 3);
             }
             return { a, b, op };
         }
 
-        function generatePyramid(maxTop) {
-            let n1, n2, n3, row2_1, row2_2, top;
+        function generatePyramid(maxTop, levels = 3) {
+            let values = [];
+            let mask = [];
+
+            // Re-implementing generation bottom-up with flat array
+            // Layers are stored sequentially bottom to top.
+            let top;
             do {
-                // Heuristic for base numbers relative to maxTop
-                let maxBase = Math.floor(maxTop / 4);
-                n1 = getRandomInt(1, maxBase);
-                n2 = getRandomInt(1, maxBase);
-                n3 = getRandomInt(1, maxBase);
-                row2_1 = n1 + n2;
-                row2_2 = n2 + n3;
-                top = row2_1 + row2_2;
+                values = [];
+                // 1. Generate Base
+                let baseCount = levels;
+                let maxBase = Math.floor(maxTop / (2 ** (levels - 1)));
+                if (maxBase < 1) maxBase = 1;
+
+                // Push base layer
+                for (let i = 0; i < baseCount; i++) {
+                    values.push(getRandomInt(1, maxBase));
+                }
+
+                // 2. Calculate upper layers
+                let currentLayerStart = 0;
+                let currentLayerLength = baseCount;
+
+                for (let l = 1; l < levels; l++) {
+                    // Next layer has currentLayerLength - 1 elements
+                    for (let i = 0; i < currentLayerLength - 1; i++) {
+                        let val = values[currentLayerStart + i] + values[currentLayerStart + i + 1];
+                        values.push(val);
+                    }
+                    currentLayerStart += currentLayerLength;
+                    currentLayerLength--;
+                }
+
+                top = values[values.length - 1];
+
             } while (top > maxTop);
 
-            let mask = [false, false, false, false, false, false];
-            const patterns = [
-                [5],
-                [3, 4],
-                [5, 4, 0],
-                [5, 3, 2],
-                [5, 1],
-                [3, 4, 1]
-            ];
-            const pattern = patterns[getRandomInt(0, patterns.length - 1)];
-            pattern.forEach(idx => mask[idx] = true);
+            // Generate Mask
+            // Just simple random masking for now. 
+            const totalItems = values.length;
+            const itemsToHide = Math.floor(totalItems * 0.5); // 50% hidden
+
+            mask = new Array(totalItems).fill(false);
+
+            // Ensure we don't hide everything.
+            let hiddenCount = 0;
+            while (hiddenCount < itemsToHide) {
+                let idx = getRandomInt(0, totalItems - 1);
+                if (!mask[idx]) {
+                    mask[idx] = true;
+                    hiddenCount++;
+                }
+            }
 
             return {
                 type: 'pyramid',
-                values: [n1, n2, n3, row2_1, row2_2, top],
+                levels: levels,
+                values: values,
                 mask: mask
             };
         }
 
-        function generateSheet() {
-            const selector = document.getElementById('topicSelector');
-            const type = selector.value;
-            const titleElement = document.getElementById('sheetTitle');
-            const container = document.getElementById('problemContainer');
-            const mascotElement = document.getElementById('mascot');
+        // --- NEW RENDERING ARCHITECTURE ---
 
-            // Set Title based on selection text
-            titleElement.textContent = selector.options[selector.selectedIndex].text;
-
-            // Clear old problems
-            container.innerHTML = '';
-
-            // Layout adjustments
-            if (type.includes('rechenmauer')) {
-                // Pyramids need more space
-                container.style.gridTemplateColumns = '1fr 1fr';
-                container.style.columnGap = '30px';
-                container.style.rowGap = '40px';
-            } else {
-                container.style.gridTemplateColumns = '1fr 1fr';
-                container.style.columnGap = '40px';
-                container.style.rowGap = '25px';
+        function generateProblemsData(type, count) {
+            const data = [];
+            for (let i = 0; i < count; i++) {
+                data.push(generateProblem(type));
             }
+            return data;
+        }
 
+        function createProblemElement(problemData, isSolution) {
+            const problemDiv = document.createElement('div');
+            problemDiv.className = 'problem';
 
-            // For word problems and pyramids loop count varies
-            let numProblems = 20;
-            if (type === 'word_problems') numProblems = 8;
-            if (type.includes('rechenmauer')) numProblems = 12;
+            if (problemData.type === 'text') {
+                problemDiv.style.flexDirection = 'column';
+                problemDiv.style.alignItems = 'flex-start';
+                problemDiv.style.borderBottom = '1px solid #eee';
+                problemDiv.style.paddingBottom = '10px';
 
-            for (let i = 0; i < numProblems; i++) {
-                const problemData = generateProblem(type);
+                const answerVal = isSolution ? problemData.a : '';
+                const correctClass = isSolution ? 'correct-answer-show' : ''; // custom class if needed
 
-                const problemDiv = document.createElement('div');
-                problemDiv.className = 'problem';
-
-                if (problemData.type === 'text') {
-                    // ... (Word problem layout code verified previously) ...
-                    problemDiv.style.flexDirection = 'column';
-                    problemDiv.style.alignItems = 'flex-start';
-                    problemDiv.style.borderBottom = '1px solid #eee';
-                    problemDiv.style.paddingBottom = '10px';
-                    problemDiv.innerHTML = `
+                problemDiv.innerHTML = `
                         <div style="font-size: 14pt; margin-bottom:10px;">${problemData.q}</div>
                         <div style="display:flex; gap:10px; align-items:center; width:100%; justify-content: flex-end;">
                             <span>Antwort:</span>
-                            <input type="number" class="answer-input" style="width:100px;" data-expected="${problemData.a}" oninput="validateInput(this)">
+                            <input type="number" class="answer-input ${correctClass}" style="width:100px;" 
+                                   data-expected="${problemData.a}" 
+                                   value="${answerVal}" 
+                                   oninput="validateInput(this)" 
+                                   ${isSolution ? 'readonly style="color:var(--primary-color); font-weight:bold;"' : ''}>
                         </div>
                     `;
 
-                } else if (problemData.type === 'pyramid') {
-                    // Render Pyramid
-                    const v = problemData.values;
-                    const m = problemData.mask;
+            } else if (problemData.type === 'pyramid') {
+                const v = problemData.values;
+                const m = problemData.mask;
+                const levels = problemData.levels || 3;
 
-                    const renderBrick = (idx) => {
-                        const val = v[idx];
-                        const isHidden = m[idx];
-                        if (isHidden) {
-                            return `<div class="brick input"><input type="number" class="brick-input answer-input" data-expected="${val}" oninput="validateInput(this)"></div>`;
-                        } else {
-                            return `<div class="brick">${val}</div>`;
-                        }
-                    };
+                const renderBrick = (idx) => {
+                    if (idx >= v.length) return '';
+                    const val = v[idx];
+                    const isHidden = m[idx];
 
-                    problemDiv.innerHTML = `
-                        <div class="pyramid-container">
-                            <div class="pyramid-row">
-                                ${renderBrick(5)}
-                            </div>
-                            <div class="pyramid-row">
-                                ${renderBrick(3)}
-                                ${renderBrick(4)}
-                            </div>
-                            <div class="pyramid-row">
-                                ${renderBrick(0)}
-                                ${renderBrick(1)}
-                                ${renderBrick(2)}
-                            </div>
-                        </div>
-                    `;
-                    problemDiv.style.display = 'block';
-                    problemDiv.style.padding = '0';
+                    if (isHidden) {
+                        const valueToFill = isSolution ? val : '';
+                        const style = isSolution ? 'color:var(--primary-color); font-weight:bold;' : '';
+                        return `<div class="brick input"><input type="number" class="brick-input answer-input" 
+                                    data-expected="${val}" 
+                                    value="${valueToFill}"
+                                    oninput="validateInput(this)"
+                                    ${isSolution ? 'readonly' : ''} style="${style}"></div>`;
+                    } else {
+                        return `<div class="brick">${val}</div>`;
+                    }
+                };
 
-                } else if (problemData.type === 'missing_addend') {
-                    // e.g. 3 + [ ] = 10
-                    const { a, sum, op } = problemData;
-                    // Expected is sum - a? No, problemData didn't store unknown 'b'. 
-                    // Wait, logic in generateProblem for bonds_10: a = random, sum = 10. b = 10-a.
-                    const expected = sum - a;
+                let html = '<div class="pyramid-container">';
 
-                    problemDiv.innerHTML = `
+                let currentStartIndex = 0;
+                let rowStarts = [];
+                let currentRowLen = levels;
+                for (let l = 0; l < levels; l++) {
+                    rowStarts.push(currentStartIndex);
+                    currentStartIndex += currentRowLen;
+                    currentRowLen--;
+                }
+
+                // Render from Top (last layer) down to Base (layer 0)
+                for (let l = levels - 1; l >= 0; l--) {
+                    let startIdx = rowStarts[l];
+                    let count = levels - l;
+
+                    html += '<div class="pyramid-row">';
+                    for (let i = 0; i < count; i++) {
+                        html += renderBrick(startIdx + i);
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+
+                problemDiv.innerHTML = html;
+                problemDiv.style.display = 'block';
+                problemDiv.style.padding = '0';
+
+            } else if (problemData.type === 'missing_addend') {
+                const { a, sum, op } = problemData;
+                const expected = sum - a;
+                const val = isSolution ? expected : '';
+                const style = isSolution ? 'color:var(--primary-color); font-weight:bold;' : '';
+
+                problemDiv.innerHTML = `
                         <span class="number">${a}</span>
                         <span class="operator">${op}</span>
-                        <input type="number" class="answer-input" style="width:50px; margin:0 5px;" data-expected="${expected}" oninput="validateInput(this)">
+                        <input type="number" class="answer-input" style="width:50px; margin:0 5px; ${style}" 
+                               data-expected="${expected}" 
+                               value="${val}"
+                               oninput="validateInput(this)" ${isSolution ? 'readonly' : ''}>
                         <span class="equals">=</span>
                         <span class="number">${sum}</span>
                     `;
 
-                } else if (problemData.type === 'div_remainder') {
-                    // e.g. 17 : 5 = [ ] R [ ]
-                    const { a, b, op } = problemData;
-                    // Calc expected
-                    const quotient = Math.floor(a / b);
-                    const remainder = a % b;
+            } else if (problemData.type === 'div_remainder') {
+                const { a, b, op } = problemData;
+                const quotient = Math.floor(a / b);
+                const remainder = a % b;
 
-                    problemDiv.innerHTML = `
+                const valQ = isSolution ? quotient : '';
+                const valR = isSolution ? remainder : '';
+                const style = isSolution ? 'color:var(--primary-color); font-weight:bold;' : '';
+
+                problemDiv.innerHTML = `
                         <span class="number">${a}</span>
                         <span class="operator">${op}</span>
                         <span class="number">${b}</span>
                         <span class="equals">=</span>
-                        <input type="number" class="answer-input" style="width:40px; margin-right:5px;" data-expected="${quotient}" oninput="validateInput(this)">
+                        <input type="number" class="answer-input" style="width:40px; margin-right:5px; ${style}" 
+                               data-expected="${quotient}" value="${valQ}" oninput="validateInput(this)" ${isSolution ? 'readonly' : ''}>
                         <span style="font-size:12pt; margin-right:5px;">R</span>
-                        <input type="number" class="answer-input" style="width:40px;" data-expected="${remainder}" oninput="validateInput(this)">
+                        <input type="number" class="answer-input" style="width:40px; ${style}" 
+                               data-expected="${remainder}" value="${valR}" oninput="validateInput(this)" ${isSolution ? 'readonly' : ''}>
                     `;
 
-                } else {
-                    // Normal Number Problem
-                    const { a, b, op } = problemData;
-                    let expected;
-                    if (op === '+') expected = a + b;
-                    else if (op === '-') expected = a - b;
-                    else if (op === '×') expected = a * b;
-                    else if (op === ':') expected = a / b;
+            } else {
+                // Standard
+                const { a, b, op } = problemData;
+                let expected;
+                if (op === '+') expected = a + b;
+                else if (op === '-') expected = a - b;
+                else if (op === '×') expected = a * b;
+                else if (op === ':') expected = a / b;
 
-                    problemDiv.innerHTML = `
+                const val = isSolution ? expected : '';
+                const style = isSolution ? 'color:var(--primary-color); font-weight:bold;' : '';
+
+                problemDiv.innerHTML = `
                         <span class="number">${a}</span>
                         <span class="operator">${op}</span>
                         <span class="number">${b}</span>
                         <span class="equals">=</span>
-                        <input type="number" class="answer-input" data-expected="${expected}" oninput="validateInput(this)">
+                        <input type="number" class="answer-input" style="${style}" data-expected="${expected}" value="${val}" oninput="validateInput(this)" ${isSolution ? 'readonly' : ''}>
                     `;
-                }
-                container.appendChild(problemDiv);
+            }
+            return problemDiv;
+        }
+
+        function createSheetElement(titleText, problemDataList, isSolution) {
+            // Create Sheet
+            const sheetDiv = document.createElement('div');
+            sheetDiv.className = 'sheet';
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'sheet-header';
+            header.innerHTML = `
+                <div class="header-field">Name: <span class="line"></span></div>
+                <div class="header-field">Datum: <span class="line"></span></div>
+             `;
+            sheetDiv.appendChild(header);
+
+            // Title
+            const h1 = document.createElement('h1');
+            h1.textContent = titleText + (isSolution ? ' (Lösungen)' : '');
+            if (isSolution) h1.style.color = '#27ae60';
+            sheetDiv.appendChild(h1);
+
+            // Grid
+            const grid = document.createElement('div');
+            grid.className = 'problem-grid';
+
+            // Check layout needs
+            // We can infer layout from the first problem or pass it as arg
+            // But existing code checked 'type' string. Let's inspect first problem to guess or stick to global 'type' passed down?
+            // Simplest is to pass the 'type' string to this function or check content.
+            // problemDataList[0].type ...
+
+            // Let's rely on standard Layout unless it's a pyramid.
+            const isPyramid = problemDataList.length > 0 && problemDataList[0].type === 'pyramid';
+
+            if (isPyramid) {
+                const levels = problemDataList[0].levels || 3;
+
+                grid.style.gridTemplateColumns = '1fr 1fr';
+                grid.style.columnGap = '20px';
+                grid.style.rowGap = '25px';
+            } else {
+                grid.style.gridTemplateColumns = '1fr 1fr';
+                grid.style.columnGap = '40px';
+                grid.style.rowGap = '25px';
             }
 
-            // Random mascot
-            mascotElement.textContent = mascots[getRandomInt(0, mascots.length - 1)];
+            problemDataList.forEach(p => {
+                grid.appendChild(createProblemElement(p, isSolution));
+            });
+
+            sheetDiv.appendChild(grid);
+
+            sheetDiv.appendChild(grid);
+
+            // Layout adjustments: Removed Mascot and Footer per user request
+
+            return sheetDiv;
+        }
+
+        let currentProblemData = [];
+        let currentTitle = "";
+
+        function generateSheet() {
+            const selector = document.getElementById('topicSelector');
+            const type = selector.value;
+            currentTitle = selector.options[selector.selectedIndex].text;
+
+            // 1. Determine Count
+            let numProblems = 20;
+            if (type === 'word_problems') numProblems = 8;
+            if (type === 'rechenmauer_4') numProblems = 6; // 4-layer pyramids are large
+            else if (type.includes('rechenmauer')) numProblems = 9; // 3-layer pyramids
+
+
+            // 2. Generate Data
+            currentProblemData = generateProblemsData(type, numProblems);
+
+            // 3. Render
+            renderCurrentState();
+        }
+
+        function renderCurrentState() {
+            const wrapper = document.getElementById('sheetsWrapper');
+            const showSolutions = document.getElementById('solutionToggle').checked;
+
+            wrapper.innerHTML = '';
+
+            // Render Worksheet
+            const worksheet = createSheetElement(currentTitle, currentProblemData, false);
+            wrapper.appendChild(worksheet);
+
+            // Render Solution Sheet if requested
+            if (showSolutions) {
+                const solutionSheet = createSheetElement(currentTitle, currentProblemData, true);
+                wrapper.appendChild(solutionSheet);
+            }
         }
 
         function validateInput(input) {
