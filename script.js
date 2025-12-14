@@ -34,7 +34,7 @@ const GRADE_TOPICS = {
         { value: 'mult_advanced', text: 'Erweitertes 1x1 (bis 20)' }, // Or large mult placeholders
         { value: 'div_100', text: 'Division (bis 100 ohne Rest)' },
         { value: 'div_remainder', text: 'Division (mit Rest - Basis)' },
-        { value: 'rechenmauer_100', text: 'Große Rechenmauern (bis 100)' },
+        { value: 'rechenmauer_100', text: 'Grosse Rechenmauern (bis 100)' },
         { value: 'mixed', text: 'Gemischte Aufgaben' },
         { value: 'time_duration', text: 'Zeitspannen' }
     ],
@@ -199,6 +199,7 @@ function generateSheet() {
         else if (['mult_large', 'div_long'].includes(type)) numProblems = 8;
         else if (type === 'time_reading') numProblems = 8; // Clocks need space
         else if (type === 'visual_add_100') numProblems = 6; // 10x10 grids are large
+        else if (type === 'rounding') numProblems = 16;
         else if (['add_written', 'sub_written'].includes(type)) numProblems = 12;
 
         // Custom check: if time_reading is checked, limit to 8 to avoid overlap
@@ -669,8 +670,8 @@ function generateProblem(type) {
 
                 return {
                     type: 'time_duration',
-                    q: `Es ist ${sH}:${sM} Uhr.Wie spät ist es in ${duration} Min ? `,
-                    answer: `${eH}:${eM} `
+                    q: `Es ist ${sH}:${sM} Uhr. Wie spät ist es in ${duration} Min?`,
+                    answer: `${eH}:${eM}`
                 };
             }
     }
@@ -687,7 +688,7 @@ function renderClock(hours, minutes) {
         const deg = i * 30;
         // We draw markers. We can reuse 'clock-marker' with rotation.
         // Standard marker is at top (12). Rotate it.
-        html += `< div class="clock-marker" style = "transform: rotate(${deg}deg) translate(0, 2px)" ></div > `;
+        html += `<div class="clock-marker" style="transform: rotate(${deg}deg) translate(0, 2px)"></div>`;
         // Wait, transform origin is center? CSS says "50% 50px". (Radius 50px).
         // "left: 50%" "margin-left: -1px".
         // Rotation rotates around center of clock. 
@@ -708,8 +709,8 @@ function renderClock(hours, minutes) {
     const minDeg = minutes * 6;
     const hourDeg = (hours % 12) * 30 + minutes * 0.5;
 
-    html += `< div class="clock-hand hand-hour" style = "transform: rotate(${hourDeg}deg)" ></div > `;
-    html += `< div class="clock-hand hand-minute" style = "transform: rotate(${minDeg}deg)" ></div > `;
+    html += `<div class="clock-hand hand-hour" style="transform: rotate(${hourDeg}deg)"></div>`;
+    html += `<div class="clock-hand hand-minute" style="transform: rotate(${minDeg}deg)"></div>`;
 
     html += '</div>';
     return html;
@@ -775,7 +776,7 @@ function generatePyramid(maxTop, levels = 3) {
 function renderWrittenMultiplicationSolution(a, b) {
     const sA = a.toString();
     const sB = b.toString();
-    let html = `< div class="written-vertical" style = "align-items: flex-end; font-size:1rem;" >
+    let html = `<div class="written-vertical" style="align-items: flex-end; font-size:1rem;">
                 <div class="written-row">${sA} &middot; ${sB}</div>
                 <div class="written-line"></div>`;
 
@@ -783,12 +784,12 @@ function renderWrittenMultiplicationSolution(a, b) {
         const digit = parseInt(sB[i]);
         const partial = a * digit;
         const paddingRight = sB.length - 1 - i;
-        html += `< div class="written-row" style = "padding-right: ${paddingRight}ch;" > ${partial}</div > `;
+        html += `<div class="written-row" style="padding-right: ${paddingRight}ch;">${partial}</div>`;
     }
 
-    html += `< div class="written-line" ></div >
+    html += `<div class="written-line"></div>
                     <div class="written-row"><strong>${a * b}</strong></div>
-    </div > `;
+    </div>`;
 
     return html;
 }
@@ -811,7 +812,7 @@ function createProblemElement(problemData, isSolution) {
         const correctClass = isSolution ? 'correct-answer-show' : ''; // custom class if needed
 
         problemDiv.innerHTML = `
-                    < div style = "font-size: 14pt; margin-bottom:10px;" > ${problemData.q}</div >
+                    <div style="font-size: 14pt; margin-bottom:10px;"> ${problemData.q}</div>
                         <div style="display:flex; gap:10px; align-items:center; width:100%; justify-content: flex-end;">
                             <span>Antwort:</span>
                             <input type="number" class="answer-input ${correctClass}" style="width:100px;"
@@ -835,13 +836,13 @@ function createProblemElement(problemData, isSolution) {
             if (isHidden) {
                 const valueToFill = isSolution ? val : '';
                 const style = isSolution ? 'color:var(--primary-color); font-weight:bold;' : '';
-                return `< div class="brick input" > <input type="number" class="brick-input answer-input"
+                return `<div class="brick input"><input type="number" class="brick-input answer-input"
                     data-expected="${val}"
                     value="${valueToFill}"
                     oninput="validateInput(this)"
                     ${isSolution ? 'readonly' : ''} style="${style}"></div>`;
             } else {
-                return `< div class="brick" > ${val}</div > `;
+                return `<div class="brick">${val}</div>`;
             }
         };
 
@@ -871,8 +872,11 @@ function createProblemElement(problemData, isSolution) {
         html += '</div>';
 
         problemDiv.innerHTML = html;
-        problemDiv.style.display = 'block';
+        // Fix layout to ensure centering
+        problemDiv.style.display = 'flex';
+        problemDiv.style.justifyContent = 'center';
         problemDiv.style.padding = '0';
+        problemDiv.style.border = 'none'; // Ensure no border interference
 
     } else if (problemData.type === 'missing_addend') {
         const { a, sum, op } = problemData;
@@ -880,15 +884,19 @@ function createProblemElement(problemData, isSolution) {
         const val = isSolution ? expected : '';
         const style = isSolution ? 'color:var(--primary-color); font-weight:bold;' : '';
 
+        // Use more compact layout for "Verliebte Zahlen"
+        problemDiv.style.justifyContent = 'center'; // Center the equation
+        problemDiv.style.gap = '15px'; // Consistent spacing
+
         problemDiv.innerHTML = `
-                    < span class="number" > ${a}</span >
-                <span class="operator">${op}</span>
-                <input type="number" class="answer-input" style="width:50px; margin:0 5px; ${style}" 
+                <span class="number" style="text-align:right;">${a}</span>
+                <span class="operator">${op || '+'}</span>
+                <input type="number" class="answer-input" style="width:60px; text-align:center; ${style}" 
                        data-expected="${expected}" 
                        value="${val}"
                        oninput="validateInput(this)" ${isSolution ? 'readonly' : ''}>
                 <span class="equals">=</span>
-                <span class="number">${sum}</span>
+                <span class="number" style="text-align:left;">${sum}</span>
             `;
 
     } else if (problemData.type === 'div_remainder') {
